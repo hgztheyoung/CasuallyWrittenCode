@@ -17,14 +17,14 @@ func main(){
 	}
 	defer termbox.Close()
 
-	setUpKey() //using type assertion
+	setUpKey()
 	setUpGlobalGameVar()
 	fmt.Printf("\t%v\t%v\t\t\n","num","inc")
-    for {
+	for {
 		num += inc
 		time.Sleep(200*time.Millisecond)		
 		fmt.Printf("\r\t%v\t%v\t\t",num,inc)
-    }
+	}
 }
 
 func setUpGlobalGameVar() {
