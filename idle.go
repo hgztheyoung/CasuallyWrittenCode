@@ -1,3 +1,5 @@
+//referring http://nirasan.hatenablog.com/entry/2016/05/28/094014
+
 package main
 import (
 	"time"
