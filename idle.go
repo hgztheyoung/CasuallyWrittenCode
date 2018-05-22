@@ -1,16 +1,17 @@
-//referring http://nirasan.hatenablog.com/entry/2016/05/28/094014
-
 package main
 import (
 	"time"
 	"fmt"
+	// "fmt"
+	// "time"
 	"github.com/nsf/termbox-go"
 	keyboard "github.com/julienroland/keyboard-termbox"
 )
 
 var num int
 var inc int
-
+var nextIncFee int
+var nextInc int
 func main(){
 	//Init termbox
 	err := termbox.Init()
@@ -19,19 +20,21 @@ func main(){
 	}
 	defer termbox.Close()
 
-	setUpKey()
+	setUpKey() //using type assertion
 	setUpGlobalGameVar()
-	fmt.Printf("\t%v\t%v\t\t\n","num","inc")
-	for {
+	fmt.Printf("\r\t%10v\t%10v\t\t%10v\t\t%10v\t\t\n","num","inc","nextInc","nextIncFee")
+    for {
 		num += inc
-		time.Sleep(200*time.Millisecond)		
-		fmt.Printf("\r\t%v\t%v\t\t",num,inc)
-	}
+		time.Sleep(400*time.Millisecond)		
+		fmt.Printf("\r\t%10v\t%10v\t\t%10v\t\t%10v\t\t",num,inc,nextInc,nextIncFee)
+    }
 }
 
 func setUpGlobalGameVar() {
 	num = 0
 	inc = 1
+	nextIncFee = 10
+	nextInc = 1
 }
 
 func setUpKey() {
@@ -39,10 +42,12 @@ func setUpKey() {
 	kb.Bind(func() { panic("Exiting!!!!!!!!!!!!!!!!!!!!!!") }, "escape", "q")
     kb.Bind(func() {
 		inccount := 0
-		if(num > (inc*10+inccount)){	
+		if(num > nextIncFee){	
 			num -= inc*10		
-			inc += inc/(8+inccount) + 1
+			inc += nextInc
 			inccount++
+			nextIncFee = inc*10+inccount
+			nextInc = inc/(8+inccount) + 1
 		}
 	}, "up", "k")
     kb.Bind(func() { 
