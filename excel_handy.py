@@ -6,10 +6,10 @@ import xlrd
 import csv
 
 # read a excel sheet,and return an 2-dem array
-# cope with merged slot
+# deal with merged slot
 def read_sheet(file_path, sheet_index):
     # 打开文件
-    workbook = xlrd.open_workbook(file_path)
+    workbook = xlrd.open_workbook(file_path)de
     sheet2 = workbook.sheet_by_index(sheet_index)  # sheet索引从0开始
     rows_num = sheet2.nrows
     cols_num = sheet2.ncols
