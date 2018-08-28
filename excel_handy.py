@@ -51,15 +51,14 @@ def get_merged_cells_value(sheet, row_index, col_index):
     return None
 
 
-def genUniqueRows(twodemArray):
-    if len(twodemArray) <= 1:
-        return twodemArray
-    ret = [twodemArray[0]]
-    for i in range(1, len(twodemArray)):
-        if twodemArray[i] != twodemArray[i - 1]:
-            ret.append(twodemArray[i])
+def genUniqueRows(twodimArray):
+    if len(twodimArray) <= 1:
+        return twodimArray
+    ret = [twodimArray[0]]
+    for i in range(1, len(twodimArray)):
+        if twodimArray[i] != twodimArray[i - 1]:
+            ret.append(twodimArray[i])
     return ret
-
 
 def csvConvert(from_csv_filepath,res_file_path,
                from_cols_list,to_col_list):
