@@ -1,123 +1,115 @@
 package main
-
 import (
-	"fmt"
-	"math/rand"
-	"time"
-	"sync"
+  "fmt"
+  "math/rand"
+  "time"
 )
 
 func main() {
-	big := 100000000
-	A := rand.Perm(big)	
-	s := time.Now()
-	sort(A)
-	l := time.Now()
-	fmt.Println(l.Sub(s))
-	// fmt.Println(sort(A))
+  // arr := []int{3,2,1,5,4,6,8,7,9})
+  arr := rand.Perm(1000000)
+  t1 := time.Now()
+  MergeSort(arr)
+  fmt.Println(time.Since(t1))
+  t2 := time.Now()
+  MergeSort_P(arr)
+  fmt.Println(time.Since(t2))
 }
 
-// top-down approach
-func sort(A []int) []int {
-    if len(A) <= 20000 {
-        return sort_s(A)
+
+
+
+func MergeSort(arr []int) []int{
+  if len(arr)<=1{
+    return arr
+  }
+  mid := int(len(arr)/2)
+  l := MergeSort(arr[:mid])
+  r := MergeSort(arr[mid:])
+  return Merge(l,r)
+}
+
+func MergeSort_P(arr []int) []int{
+  if len(arr)<=1{
+    return arr
+  }
+  mid := int(len(arr)/2)
+  ch := make(chan struct{})
+  l := arr[:mid]
+  go func(){
+    l = MergeSort_P(arr[:mid])
+    ch <- struct{}{}
+  }()
+  r := MergeSort_P(arr[mid:])
+  <-ch
+  return Merge_P(l,r)
+}
+
+func Merge(l,r []int) []int{
+  ll,lr :=len(l),len(r)
+  length :=ll+lr 
+  ret := make([]int,length,length)
+  k,i,j:=0,0,0
+  for i!=ll &&j!=lr{
+    if l[i] < r[j]{
+      ret[k] = l[i]
+      i++
+    }else{
+      ret[k] = r[j]
+      j++
     }
-	mid := len(A) / 2
-	left, right := A[0:mid], A[mid:]
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func(){
-		defer wg.Done()
-		left = sort(left)
-	}()
-	right = sort(right)
-	wg.Wait()
-    return merge_s(left, right)
+    k++
+  }
+  for i!=ll{
+    ret[k] = l[i]
+    i++
+    k++
+  }
+  for j!=lr{
+    ret[k] = r[j]
+    j++
+    k++
+  }
+  return ret
 }
 
-//_s stands for single thread
-func sort_s(A []int) []int {
-    if len(A) <= 1 {
-        return A
+// binary search ,return index i where
+// forall x in arr[:i] n >= x and 
+// forall y in arr[i:] n < y
+// notice that arr[:i] or arr[i:] can be empty 
+func BinarySearch(arr []int, n int) int{
+  f,l := 0,len(arr)
+  for f<l{
+    mid := f + (l-f)/2
+    if arr[mid] <= n{
+      f = mid+1
+    }else{
+      l = mid
     }
-	mid := len(A) / 2
-	left, right := A[0:mid], A[mid:]
-	left = sort_s(left)
-	right = sort_s(right)
-	return merge_s(left, right)
+  }
+  return f
 }
 
-// assumes that A and B are sorted
-func merge(A, B []int) []int {
-	lA,lB := len(A),len(B)
-	if lA+lB<100000 {
-		return merge_s(A,B)
-	}else if lA<lB {
-		return merge(B,A)
-	}else if lA == 0{
-		return B
-	}else {
-		
-		ma := lA / 2	
-		mb := binarySearch(B,A[ma])
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		var l []int
-		go func(){
-			defer wg.Done()
-			l = merge(A[:ma],B[:mb])
-		}()	
-		r := merge(A[ma+1:],B[mb:])
-		wg.Wait()
-		l = append(l,A[ma])
-		l = append(l,r...)
-		return l
-	}
-}
-func merge_s(A, B []int) []int {
-	lA,lB := len(A),len(B)
-	ai,bi,ri :=0,0,-1
-	ret := make([]int, lA+lB)
-	for ai!=lA && bi !=lB {
-		ri++
-		if(A[ai]<B[bi]){
-			ret[ri] = A[ai]			
-			ai++
-		}else{
-			ret[ri] = B[bi]
-			bi++
-		}
-	}
-	for ai!=lA {
-		ri++
-		ret[ri] = A[ai]			
-		ai++
-	}
-	for bi!=lB {
-		ri++
-		ret[ri] = B[bi]			
-		bi++
-	}
-	return ret
-}
 
-// 作者：Simth
-// 链接：https://www.jianshu.com/p/fe4728688adb
-// 來源：简书
-// 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
-func binarySearch(sortedArray []int, lookingFor int) int {
-    var low int = 0
-    var high int = len(sortedArray) - 1
-    for low <= high {
-        var mid int =low + (high - low)/2
-        var midValue int = sortedArray[mid]
-        if midValue == lookingFor {
-            return mid
-        } else if midValue > lookingFor {
-            high = mid -1
-        } else {
-            low = mid + 1
-        }
-    }
-    return low
+func Merge_P(a1,a2 []int) []int{
+  // base case
+  if len(a1)+len(a2) < 100000{
+    return Merge(a1,a2)
+  }
+  // parallel case
+  if len(a2)<len(a1){
+    a1,a2 = a2,a1
+  }
+  mida2 := a2[len(a2)/2]
+  mida2_in_a1_i := BinarySearch(a1,mida2)
+  done := make(chan struct{})
+  var large []int
+  go func(){
+    large = Merge_P(a1[mida2_in_a1_i:],a2[len(a2)/2:])    
+    done <- struct{}{}
+  }()
+  <-done
+  small := Merge_P(a1[:mida2_in_a1_i],a2[:len(a2)/2])
+  
+  return append(small,large...)
 }
