@@ -23,7 +23,7 @@ func MergeSort(arr []int) []int{
   if len(arr)<=1{
     return arr
   }
-  mid := int(len(arr)/2)
+  mid := len(arr)/2
   l := MergeSort(arr[:mid])
   r := MergeSort(arr[mid:])
   return Merge(l,r)
