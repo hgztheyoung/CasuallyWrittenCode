@@ -2,7 +2,6 @@ package main
 
 import (
     "fmt"
-    "sync"
     "math/rand"
 )
 
@@ -20,18 +19,19 @@ func main() {
     }()
     res := make(chan int,1)
     res <-0
-    var wg sync.WaitGroup
-    wg.Add(data_size)
+    ch := make(chan struct{})
     for count:=0;count<worker_count;count++{
         go func(){ //Gopher means go func
             for {
                 i := <-c
                 s := <-res
                 res <-s+i
-                wg.Done()
+                ch<-struct{}{}
             }
         }()
     }
-    wg.Wait()
+    for c:=0;c<data_size;c++{
+        <-ch
+    }
     fmt.Println(<-res)
 }
