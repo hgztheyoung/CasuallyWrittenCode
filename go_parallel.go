@@ -167,15 +167,6 @@ func DoJobParallel() {
     <-allDone
 }
 
-func randomDispatch(from <-chan struct{}, outs []chan<- struct{}) {
-    for {
-        select {
-        case <-from:
-            outs[rand.Intn(len(outs))] <- struct{}{}
-        }
-    }
-}
-
 func PingPongGoroutine() {
     c := make(chan struct{})
     counter := 0
