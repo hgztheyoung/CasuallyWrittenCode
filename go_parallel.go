@@ -14,7 +14,7 @@ func Job(i int) {
 }
 
 func JobMayFail(i int) int {
-    <-time.After(time.Duration(10+rand.Intn(2)) * time.Microsecond)
+    <-time.After(time.Duration(10+rand.Intn(10)) * time.Microsecond)
     flip := rand.Int31n(100)
     if flip > 80 {
         log.Println("Job ", i, " failed")
@@ -31,6 +31,7 @@ func DoJobMayFailSequencial() {
     giveUpChan := make(chan int, jobCount)
     failChan := make(chan int, jobCount)
     failedCount := make(map[int]int)
+    retries := 2
     for i := 0; i < jobCount; i++ {
         undoneChan <- i
     }
@@ -47,7 +48,7 @@ func DoJobMayFailSequencial() {
             }
         case i := <-failChan:
             failedCount[i]++
-            if failedCount[i] == 2 {
+            if failedCount[i] == retries {
                 log.Println("Job ", i, " givenup")
                 giveUpChan <- i
             } else {
@@ -60,19 +61,21 @@ func DoJobMayFailSequencial() {
     fmt.Println("len(giveUpChan)", len(giveUpChan), givenUpCount)
     fmt.Println("len(failChan)", len(failChan))
 }
+
 func DoJobMayFailParallel() {
-    jobCount := 50000
+    jobCount := 500000
     undoneChan := make(chan int, jobCount)
     doneChan := make(chan int, jobCount)
     giveUpChan := make(chan int, jobCount)
     failChan := make(chan int, jobCount)
     failedCount := make(map[int]int)
+    retries := 2
     for i := 0; i < jobCount; i++ {
         undoneChan <- i
     }
     givenUpCount := 0
 
-    workerCount := 50
+    workerCount := 500
     idle := make(chan int, workerCount)
     for i := 0; i < workerCount; i++ {
         idle <- i
@@ -94,7 +97,7 @@ func DoJobMayFailParallel() {
             }()
         case i := <-failChan:
             failedCount[i]++
-            if failedCount[i] == 2 {
+            if failedCount[i] == retries {
                 log.Println("Job ", i, " givenup")
                 giveUpChan <- i
             } else {
@@ -105,7 +108,7 @@ func DoJobMayFailParallel() {
             //wait for return
             // in sequencial,we don't need this case,cause at any time,one of
             //<-undoneChan,<-failChan or len(doneChan)+len(giveUpChan) != jobCount (at last) will hold.
-            // here,because of go,doneChan <- i or failChan <- i may happen after select.
+            // here,because of go func,doneChan <- i or failChan <- i may happen after select.
             time.Sleep(200 * time.Millisecond)
             continue
         }
