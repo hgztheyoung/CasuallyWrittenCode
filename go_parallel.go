@@ -35,7 +35,6 @@ func DoJobMayFailSequencial() {
     for i := 0; i < jobCount; i++ {
         undoneChan <- i
     }
-    givenUpCount := 0
 
     for len(doneChan)+len(giveUpChan) != jobCount {
         select {
@@ -58,7 +57,7 @@ func DoJobMayFailSequencial() {
     }
     fmt.Println("len(undoneChan)", len(undoneChan))
     fmt.Println("len(doneChan)", len(doneChan))
-    fmt.Println("len(giveUpChan)", len(giveUpChan), givenUpCount)
+    fmt.Println("len(giveUpChan)", len(giveUpChan))
     fmt.Println("len(failChan)", len(failChan))
 }
 
@@ -73,7 +72,6 @@ func DoJobMayFailParallel() {
     for i := 0; i < jobCount; i++ {
         undoneChan <- i
     }
-    givenUpCount := 0
 
     workerCount := 500
     idle := make(chan int, workerCount)
@@ -115,7 +113,7 @@ func DoJobMayFailParallel() {
     }
     fmt.Println("len(undoneChan)", len(undoneChan))
     fmt.Println("len(doneChan)", len(doneChan))
-    fmt.Println("len(giveUpChan)", len(giveUpChan), givenUpCount)
+    fmt.Println("len(giveUpChan)", len(giveUpChan))
     fmt.Println("len(failChan)", len(failChan))
 }
 
