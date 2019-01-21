@@ -1,3 +1,4 @@
+//permission of this file is granted,free of charge
 package main
 
 import (
