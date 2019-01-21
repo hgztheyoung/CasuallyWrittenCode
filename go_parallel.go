@@ -61,7 +61,7 @@ func DoJobMayFailSequencial() {
 	fmt.Println("len(failChan)", len(failChan))
 }
 func DoJobMayFailParallel() {
-	jobCount := 5000
+	jobCount := 50000
 	undoneChan := make(chan int, jobCount)
 	doneChan := make(chan int, jobCount)
 	giveUpChan := make(chan int, jobCount)
@@ -72,16 +72,25 @@ func DoJobMayFailParallel() {
 	}
 	givenUpCount := 0
 
+	workerCount := 50
+	idle := make(chan int, workerCount)
+	for i := 0; i < workerCount; i++ {
+		idle <- i
+	}
+
 	for len(doneChan)+len(giveUpChan) != jobCount {
 		select {
 		case i := <-undoneChan:
+			worker := <-idle
 			go func() {
+				worker := worker
 				ret := JobMayFail(i)
 				if ret == 0 {
 					doneChan <- i
 				} else {
 					failChan <- i
 				}
+				idle <- worker
 			}()
 		case i := <-failChan:
 			failedCount[i]++
@@ -91,7 +100,13 @@ func DoJobMayFailParallel() {
 			} else {
 				undoneChan <- i
 			}
+
 		default:
+			//wait for return
+			// in sequencial,we don't need this case,cause at any time,one of
+			//<-undoneChan,<-failChan or len(doneChan)+len(giveUpChan) != jobCount (at last) will hold.
+			// here,because of go,doneChan <- i or failChan <- i may happen after select.
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 	}
