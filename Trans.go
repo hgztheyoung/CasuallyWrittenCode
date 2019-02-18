@@ -7,8 +7,6 @@ import (
 	"math/rand"
 )
 
-//TODO: Market Orders
-
 type AskBid int
 type MarketLimit int
 
@@ -64,17 +62,24 @@ func BrokerMainLoop() {
 				Bids = InsertOrder(Bids, order)
 			}
 		}
-		//trade off the Asks and Bids		
+		//trade off the Asks and Bids
+		fmt.Println(len(Asks), len(Bids), len(Orders))
 		for len(Asks) > 0 && len(Bids) > 0 && Asks[0].Price <= Bids[len(Bids)-1].Price {
 			if Asks[0].Amount < Bids[len(Bids)-1].Amount {
 				Bids[len(Bids)-1].Amount = Bids[len(Bids)-1].Amount - Asks[0].Amount
-				fmt.Println("Deal!!!", Asks[0])
+				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
 				Asks = Asks[1:]
 				continue
 			}
 			if Asks[0].Amount > Bids[len(Bids)-1].Amount {
 				Asks[0].Amount = Asks[0].Amount - Bids[len(Bids)-1].Amount
-				fmt.Println("Deal!!!", Bids[len(Bids)-1])
+				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
+				Bids = Bids[:len(Bids)-1]
+				continue
+			}
+			if Asks[0].Amount == Bids[len(Bids)-1].Amount {
+				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
+				Asks = Asks[1:]
 				Bids = Bids[:len(Bids)-1]
 				continue
 			}
@@ -91,7 +96,7 @@ func BrokerMainLoop() {
 func DealerMainLoop() {
 	for {
 		select {
-		case <-time.After(time.Millisecond * 20):
+		case <-time.After(time.Millisecond * 15):
 			//create dummy orders and send to order chan
 			Orders <- Order{AskBid: AskBid(rand.Intn(2)), MarketLimit: Market, Amount: rand.Intn(1000), Price: float64(rand.Intn(1000))}
 		}
@@ -100,8 +105,10 @@ func DealerMainLoop() {
 
 func TestPlayWithChan(t *testing.T) {
 	//Init Orders
-	Orders = make(chan Order, 1000000)
+	Orders = make(chan Order, 100000)
 	go BrokerMainLoop()
-	go DealerMainLoop()
+	for i := 0; i < 10; i++ {
+		go DealerMainLoop()
+	}
 	select {}
 }
