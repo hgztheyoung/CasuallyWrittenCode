@@ -12,12 +12,12 @@ type MarketLimit int
 
 const (
 	Ask AskBid = iota
-	Bid
+	Bid 
 )
 
 const (
 	Market MarketLimit = iota
-	Limit
+	Limit  
 )
 
 type Order struct {
@@ -28,6 +28,18 @@ type Order struct {
 }
 
 var Orders chan Order
+
+func OrderBinarySearch(array []Order, first, last int, value Order) int {
+	for first < last {
+		mid := first + (last-first)/2
+		if array[mid].Price < value.Price {
+			first = mid + 1
+		} else {
+			last = mid
+		}
+	}
+	return first
+}
 
 func InsertOrder(orders []Order, order Order) []Order {
 	i := OrderBinarySearch(orders, 0, len(orders), order)
@@ -50,6 +62,8 @@ func BrokerMainLoop() {
 				Bids = InsertOrder(Bids, order)
 			}
 		}
+		//TODO:trade off the Asks and Bids
+
 		if len(Asks) > 5 && len(Bids) > 5 {
 			fmt.Println("Loweast 5 Asks", Asks[0:5])
 			fmt.Println("Highest 5 Bids", Bids[len(Bids)-5:])
@@ -66,18 +80,6 @@ func DealerMainLoop() {
 			Orders <- Order{AskBid: AskBid(rand.Intn(2)), MarketLimit: Market, Amount: rand.Intn(1000), Price: float64(rand.Intn(1000))}
 		}
 	}
-}
-
-func OrderBinarySearch(array []Order, first, last int, value Order) int {
-	for first < last {
-		mid := first + (last-first)/2
-		if array[mid].Price < value.Price {
-			first = mid + 1
-		} else {
-			last = mid
-		}
-	}
-	return first
 }
 
 func TestPlayWithChan(t *testing.T) {
