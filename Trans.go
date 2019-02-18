@@ -23,8 +23,8 @@ const (
 type Order struct {
 	AskBid      AskBid
 	MarketLimit MarketLimit
-	Amount      int
-	Price       float64 //used by Market Order
+	Volume      int
+	Price       float64 //used by Market Tran
 }
 
 var Orders chan Order
@@ -73,25 +73,25 @@ func BrokerMainLoop() {
 			}
 		}
 		//trade off the Asks and Bids
-		fmt.Println(len(Asks), len(Bids), len(Orders))
+		//fmt.Println(len(Asks), len(Bids), len(Orders))
 
 		for len(Asks) > 0 && len(Bids) > 0 &&
 			(Asks[0].Price <= Bids[len(Bids)-1].Price ||
 				Asks[0].MarketLimit == Market ||
 				Bids[len(Bids)-1].MarketLimit == Market) {
-			if Asks[0].Amount < Bids[len(Bids)-1].Amount {
-				Bids[len(Bids)-1].Amount = Bids[len(Bids)-1].Amount - Asks[0].Amount
+			if Asks[0].Volume < Bids[len(Bids)-1].Volume {
+				Bids[len(Bids)-1].Volume = Bids[len(Bids)-1].Volume - Asks[0].Volume
 				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
 				Asks = Asks[1:]
 				continue
 			}
-			if Asks[0].Amount > Bids[len(Bids)-1].Amount {
-				Asks[0].Amount = Asks[0].Amount - Bids[len(Bids)-1].Amount
+			if Asks[0].Volume > Bids[len(Bids)-1].Volume {
+				Asks[0].Volume = Asks[0].Volume - Bids[len(Bids)-1].Volume
 				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
 				Bids = Bids[:len(Bids)-1]
 				continue
 			}
-			if Asks[0].Amount == Bids[len(Bids)-1].Amount {
+			if Asks[0].Volume == Bids[len(Bids)-1].Volume {
 				fmt.Println("Deal!!!", Asks[0], " -> ", Bids[len(Bids)-1])
 				Asks = Asks[1:]
 				Bids = Bids[:len(Bids)-1]
@@ -99,9 +99,9 @@ func BrokerMainLoop() {
 			}
 		}
 		if len(Asks) > 5 && len(Bids) > 5 {
-			fmt.Println("Loweast 5 Asks", Asks[0:5])
-			fmt.Println("Highest 5 Bids", Bids[len(Bids)-5:])
-			fmt.Println("-----------------------------------")
+			//fmt.Println("Loweast 5 Asks", Asks[0:5])
+			//fmt.Println("Highest 5 Bids", Bids[len(Bids)-5:])
+			//fmt.Println("-----------------------------------")
 		}
 	}
 }
@@ -111,7 +111,7 @@ func DealerMainLoop() {
 		select {
 		case <-time.After(time.Millisecond * 15):
 			//create dummy orders and send to order chan
-			order := Order{AskBid: AskBid(rand.Intn(2)), MarketLimit: MarketLimit(rand.Intn(2)), Amount: rand.Intn(1000), Price: float64(rand.Intn(1000))}
+			order := Order{AskBid: AskBid(rand.Intn(2)), MarketLimit: Limit, Volume: rand.Intn(1000), Price: float64(rand.Intn(1000))}
 			if order.MarketLimit == Market {
 				order.Price = 0
 			}
