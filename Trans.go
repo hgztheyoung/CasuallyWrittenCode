@@ -7,6 +7,8 @@ import (
 	"math/rand"
 )
 
+//TODO: Market Orders
+
 type AskBid int
 type MarketLimit int
 
@@ -62,8 +64,7 @@ func BrokerMainLoop() {
 				Bids = InsertOrder(Bids, order)
 			}
 		}
-		//trade off the Asks and Bids
-
+		//trade off the Asks and Bids		
 		for len(Asks) > 0 && len(Bids) > 0 && Asks[0].Price <= Bids[len(Bids)-1].Price {
 			if Asks[0].Amount < Bids[len(Bids)-1].Amount {
 				Bids[len(Bids)-1].Amount = Bids[len(Bids)-1].Amount - Asks[0].Amount
