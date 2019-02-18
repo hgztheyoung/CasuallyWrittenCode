@@ -12,12 +12,12 @@ type MarketLimit int
 
 const (
 	Ask AskBid = iota
-	Bid 
+	Bid
 )
 
 const (
 	Market MarketLimit = iota
-	Limit  
+	Limit
 )
 
 type Order struct {
@@ -62,7 +62,22 @@ func BrokerMainLoop() {
 				Bids = InsertOrder(Bids, order)
 			}
 		}
-		//TODO:trade off the Asks and Bids
+		//trade off the Asks and Bids
+
+		for len(Asks) > 0 && len(Bids) > 0 && Asks[0].Price <= Bids[len(Bids)-1].Price {
+			if Asks[0].Amount < Bids[len(Bids)-1].Amount {
+				Bids[len(Bids)-1].Amount = Bids[len(Bids)-1].Amount - Asks[0].Amount
+				fmt.Println("Deal!!!", Asks[0])
+				Asks = Asks[1:]
+				continue
+			}
+			if Asks[0].Amount > Bids[len(Bids)-1].Amount {
+				Asks[0].Amount = Asks[0].Amount - Bids[len(Bids)-1].Amount
+				fmt.Println("Deal!!!", Bids[len(Bids)-1])
+				Bids = Bids[:len(Bids)-1]
+				continue
+			}
+		}
 
 		if len(Asks) > 5 && len(Bids) > 5 {
 			fmt.Println("Loweast 5 Asks", Asks[0:5])
