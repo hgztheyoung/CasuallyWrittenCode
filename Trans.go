@@ -24,7 +24,7 @@ type Order struct {
 	AskBid      AskBid
 	MarketLimit MarketLimit
 	Amount      int
-	Price       float64 //used by Market Tran
+	Price       float64 //used by Market Order
 }
 
 var Orders chan Order
