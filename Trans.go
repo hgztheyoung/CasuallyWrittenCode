@@ -51,8 +51,8 @@ func BrokerMainLoop() {
 			}
 		}
 		if len(Asks) > 5 && len(Bids) > 5 {
-			fmt.Println(Asks[0:5])
-			fmt.Println(Bids[len(Bids)-5:])
+			fmt.Println("Loweast 5 Asks", Asks[0:5])
+			fmt.Println("Highest 5 Bids", Bids[len(Bids)-5:])
 			fmt.Println("-----------------------------------")
 		}
 	}
