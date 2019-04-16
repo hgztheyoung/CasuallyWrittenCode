@@ -137,3 +137,158 @@ func testInterpSymbol() {
 func main() {
 	testInterpSymbol()
 }
+
+func ParseYaml2(input map[interface{}]interface{}) (expr Expr, err error) {
+	_, nameok := input["name"]
+	if nameok {
+		expr, err = ParseSymbol(input)
+		return
+	}
+
+	_, numberok := input["number"]
+	if numberok {
+		expr, err = ParseNumber(input)
+		return
+	}
+
+	_, lok := input["lambda"]
+	_, actualargok := input["actualarg"]
+	if lok && actualargok {
+		expr, err = ParseApp(input)
+		return
+	}
+	_, argok := input["arg"]
+	_, bodyok := input["body"]
+	if argok && bodyok {
+		expr, err = ParseLambda(input)
+		return
+	}
+	_, opok := input["op"]
+	_, e1ok := input["e1"]
+	_, e2ok := input["e2"]
+	if opok && e1ok && e2ok {
+		expr, err = ParseBinOp(input)
+		return
+	}
+	return nil, errors.New("ParseYaml2 failed")
+}
+func ParseLambda(input map[interface{}]interface{}) (expr Expr, err error) {
+	arg := input["arg"]
+	body := input["body"]
+	var se Symbol
+	if ma, ok := arg.(map[interface{}]interface{}); !ok {
+		err = errors.New(fmt.Sprint("ParseSymbol failed", arg))
+		return
+	} else {
+		if pse, perr := ParseSymbol(ma); perr != nil {
+			err = perr
+			return
+		} else {
+			se = pse
+		}
+	}
+	bodye, err := ParseYaml2(body.(map[interface{}]interface{}))
+	if err != nil {
+		return
+	}
+	expr = Lambda{
+		Arg:  se,
+		Body: bodye,
+	}
+	return
+}
+
+func ParseSymbol(arg map[interface{}]interface{}) (expr Symbol, err error) {
+	se := Symbol{}
+	sn, ok := arg["name"].(string)
+	if !ok {
+		err = errors.New(fmt.Sprint("ParseSymbol failed", arg))
+	}
+	se.Name = sn
+	expr = se
+	return
+}
+
+func ParseNumber(arg map[interface{}]interface{}) (expr Number, err error) {
+	ne := Number{}
+	fsn, ok := arg["number"].(float64)
+	if ok {
+		ne.Number = fsn
+		expr = ne
+		return
+	}
+	sn, ok := arg["number"].(int)
+	if ok {
+		ne.Number = float64(sn)
+		expr = ne
+		return
+
+	}
+	err = errors.New(fmt.Sprint("ParseNumber failed", arg))
+	return
+}
+
+func ParseBinOp(arg map[interface{}]interface{}) (expr BinExpr, err error) {
+	sn, ok := arg["op"].(string)
+	if !ok {
+		err = errors.New(fmt.Sprint("ParseBinOp", arg["op"]))
+	}
+	e1e, err := ParseYaml2(arg["e1"].(map[interface{}]interface{}))
+	if err != nil {
+		return
+	}
+	e2e, err := ParseYaml2(arg["e2"].(map[interface{}]interface{}))
+	if err != nil {
+		return
+	}
+	expr = BinExpr{
+		E1: e1e,
+		E2: e2e,
+		Op: sn,
+	}
+	return
+}
+
+func ParseApp(input map[interface{}]interface{}) (Expr, error) {
+	l := input["lambda"]
+	actualarg := input["actualarg"]
+	le, e1 := ParseYaml2(l.(map[interface{}]interface{}))
+	actualarge, e2 := ParseYaml2(actualarg.(map[interface{}]interface{}))
+	log.Println(actualarge, e2)
+	if e1 != nil {
+		return nil, e1
+	}
+	if e2 != nil {
+		return nil, e2
+	}
+
+	return App{
+		Lambda:    le,
+		ActualArg: actualarge,
+	}, nil
+}
+
+func main2() {
+	//testInterpSymbol()
+	y := `add1expr: &f
+    arg:
+        name: x
+    body:
+      op: +
+      e1:
+        name: x
+      e2:
+        number: 1
+lambda:
+   <<: *f
+actualarg:
+  lambda:
+     <<: *f
+  actualarg:
+    number: 5.5`
+	var res map[interface{}]interface{}
+	yaml.Unmarshal([]byte(y), &res)
+	expr, err := ParseYaml2(res)
+	fmt.Println(expr, err)
+	fmt.Println(expr.interp(MapEnv{}.empty_env()))
+}
