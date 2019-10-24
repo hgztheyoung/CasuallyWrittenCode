@@ -1,3 +1,5 @@
+package play_ground
+
 type StreamIntf interface {
 	stream()
 }
@@ -5,6 +7,8 @@ type StreamIntf interface {
 type StreamList struct {
 	SList []StreamIntf
 }
+
+func (s StreamList) stream() {}
 
 type StreamSuspension struct {
 	Suspension func() StreamIntf
@@ -16,5 +20,4 @@ type StreamValue struct {
 	Val interface{}
 }
 
-func (s StreamValue) stream() {
-}
+func (s StreamValue) stream() {}
