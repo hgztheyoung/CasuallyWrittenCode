@@ -47,7 +47,7 @@
 
 
 ;we can make a defunctionalized program a relation
-;thanks. https://cgi.soic.indiana.edu/~c311/lib/exe/fetch.php?media=mk-convert.pdf
+;thanks https://cgi.soic.indiana.edu/~c311/lib/exe/fetch.php?media=mk-convert.pdf
 
 (define (caro p a)
   (fresh (d)
@@ -88,14 +88,43 @@
 
 (load "script.ss")
 
-(cps1 '((p q) (z c)) 'CONT-ID)
+;(cps1 '((p q) (z c)) 'CONT-ID)
 
 (run 1 (q)
-  (cps1ᵒ '((p q) (z c)) 'CONT-ID q))
+  (cps1ᵒ '(z ((p q) (z (s c)))) 'CONT-ID q))
 
 (run 1 (q)
   (cps1ᵒ q 'CONT-ID
    '(p q (λ (_.0) (z c (λ (_.1) (_.0 _.1 (λ (_.2) _.2))))))))
 
-(run 100 (p k q)
+(run 1 (q)
+  (cps1ᵒ 'z q
+   '(p q
+       (λ (_.0)
+         (s c
+            (λ (_.1)
+              (z _.1
+                 (λ (_.2) (_.0 _.2 (λ (_.3) (z _.3 (λ (_.4) _.4))))))))))))
+
+
+
+(run 1 (q)
+  (cps1ᵒ '((p q) (z c)) q
+   '(p q (λ (_.0) (z c (λ (_.1) (_.0 _.1 (λ (_.2) _.2))))))))
+
+
+(run 1 (q)
+  (cps1ᵒ '(p q) q
+   '(p q (λ (_.0) (z c (λ (_.1) (_.0 _.1 (λ (_.2) _.2))))))))
+
+
+;fail to terminate
+#;
+(run 2 (q)
+  (cps1ᵒ '(p q) q
+         '(p q (λ (_.0) (z c (λ (_.1) (_.0 _.1 (λ (_.2) _.2))))))))
+
+
+
+(run 1000 (p k q)
   (cps1ᵒ p k q))
