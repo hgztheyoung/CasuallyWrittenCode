@@ -58,9 +58,9 @@
    [(symbolo program) (apply-cpsᵒ C program out)]
    [(fresh (x body bodycode)
       (== program `(λ (,x) ,body))
-      (symbolo x)
-      (cps1ᵒ body 'CONT-C0 bodycode)
-      (apply-cpsᵒ C `(λ (,x C) ,bodycode) out))]
+      (symbolo x)      
+      (apply-cpsᵒ C `(λ (,x C) ,bodycode) out)
+      (cps1ᵒ body 'CONT-C0 bodycode))]
    [(fresh (app rator)
       (== program `(,app ,rator))
       (cps1ᵒ app `(CONT-app-2 ,rator ,C) out))]))
