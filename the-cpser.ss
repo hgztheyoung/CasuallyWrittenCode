@@ -29,12 +29,31 @@
                                                 ,(k sym)))))))))]))
 
 
+(define (atom? a)
+  (not (or (null? a)
+           (list? a))))
+
+(define (subst p o n)
+  (match p
+    [() '()]
+    [,a (guard (atom? a))
+        (if (eq? a o) n a)]
+    [(,[a] . ,[d]) `(,a . ,d)]))
+
 (define (cps-i p k)
   (match p
     [,sym (guard (symbol? sym)) (k sym)]
-    [(λ (,x k) ,body) (k `(λ (x) ,(cps-i-k body id)))]
-    [(,app ,rator ,kont)]))
-
+    [(k ,sth) (k sth)]
+    [(λ (,x k) ,body) (k `(λ (x) ,(cps-i body id)))]
+    [(,app ,rator ,kont)
+     (cps-i app (λ (acode)
+                  (cps-i rator (λ (rcode)
+                                 (let ([res `(,acode ,rcode)])
+                                   (match kont
+                                     [k (k res)]
+                                     [(λ (,sym) ,body)
+                                      (cps-i body (λ (bcode)
+                                                  (k (subst bcode sym res))))]))))))]))
 
 (define (cps p k)
   (match p
@@ -90,15 +109,45 @@
           (== `(,acode ,code (λ (,sym) ,appout)) out))]))]))
 
 
+(define (verify-term program)
+  (match program
+    [,sym (guard (symbol? sym)) sym]
+    [(λ (,x) ,[body]) (guard (symbol? x))
+                      `(λ (,x) ,body)]
+    [(,[app] ,[rator]) `(,app ,rator)]))
 
+
+(define (verify-termᵒ out)
+  (conde
+   [(symbolo out)]
+   [(fresh (x body)
+      (== `(λ (,x) ,body) out)
+      (symbolo x)
+      (verify-termᵒ body))]
+   [(fresh (app rator)
+      (== `(,app ,rator) out)
+      (verify-termᵒ app)
+      (verify-termᵒ rator))]))
 
 
 #!eof
 (load "the-cpser.ss")
 
 
+(cps `(p (λ (x) q)) 'K-id)
 
-(cps `(p (λ (x) ((z p) q))) id)
+(cps-i `(p (λ (x k) (k q)) (λ (g10) g10))
+ id)
+
+(p (λ (x k) (k q)) (λ (#:g10) #:g10))
+
+
+(cps `(p (λ (x) ((z p) q))) 'K-id)
+
+(cps-i
+ '(p (λ (x k) (z p (λ (g6) (g6 q k)))) (λ (g7) g7))
+ id)
+
 
 (cps '((λ (x) z) o) id)
 
