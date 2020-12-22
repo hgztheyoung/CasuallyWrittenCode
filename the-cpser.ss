@@ -17,10 +17,7 @@
 (define (cps p k)
   (match p
     [,sym (guard (symbol? sym)) (k sym)]
-    [(λ (,x) ,body) `(λ (,x k) ,(cps body k0))]
-    [(add1 ,expr) (cps expr `(K-add1 ,k)
-                       (λ (ecode)
-                              (k `(add1 ,ecode))))]
+    [(λ (,x) ,body) (k `(λ (,x k) ,(cps body k0)))]
     [(,app ,rator)
      (cps app (λ (acode)
                 (cps rator (λ (rcode)
@@ -32,13 +29,17 @@
                                                 ,(k sym)))))))))]))
 
 
+(define (cps-i p k)
+  (match p
+    [,sym (guard (symbol? sym)) (k sym)]
+    [(λ (,x k) ,body) (k `(λ (x) ,(cps-i-k body id)))]
+    [(,app ,rator ,kont)]))
+
 
 (define (cps p k)
   (match p
     [,sym (guard (symbol? sym)) (apply-k k sym)]
-    [(λ (,x) ,body) `(λ (,x k) ,(cps body 'K-k0))]
-    [(add1 ,expr) (cps expr (λ (ecode)
-                              (apply-k k `(add1 ,ecode))))]
+    [(λ (,x) ,body) (apply-k k `(λ (,x k) ,(cps body 'K-k0)))]
     [(,app ,rator)
      (cps app `(K-app-1 ,k ,rator))]))
 
@@ -47,7 +48,6 @@
   (match k
     [K-id code]
     [K-k0 `(k ,code)]
-    [(K-add1 ,k) (apply-k k `(add1 ,code))]
     [(K-app-1 ,k ,rator)
      (cps rator `(K-app-0 ,k ,code))]
     [(K-app-0 ,k ,acode)
@@ -60,15 +60,14 @@
 
 
 
-
 ;;;;;
 (define (cpsᵒ p k out)
   (conde
    [(symbolo p) (apply-kᵒ k p out)]
    [(fresh (x body bout)
       (== p `(λ (,x) ,body))
-      (== `(λ (,x k) ,bout) out)
-      (cpsᵒ body 'K-k0 bout))]
+      (cpsᵒ body 'K-k0 bout)
+      (apply-kᵒ k `(λ (,x k) ,bout) out))]
    [(fresh (app rator)
       (== p `(,app ,rator))
       (cpsᵒ app `(K-app-1 ,k ,rator) out))]))
@@ -78,15 +77,12 @@
   (conde
    [(== k-strcut 'K-id) (== code out)]
    [(== k-strcut 'K-k0) (== `(k ,code) out)]
-   [(fresh (k)
-      (== k-strcut `(K-add1 ,k))
-      (apply-kᵒ k `(add1 ,code) out))]
    [(fresh (k rator)
       (== k-strcut `(K-app-1 ,k ,rator))
       (cpsᵒ rator `(K-app-0 ,k ,code) out))]
    [(fresh (k acode)
       (== k-strcut `(K-app-0 ,k ,acode))
-      (conde
+      (conda
        [(== k 'K-k0) (== `(,acode ,code k) out)]
        [(fresh (sym appout)
           (symbolo sym)
@@ -95,12 +91,27 @@
 
 
 
+
+
 #!eof
 (load "the-cpser.ss")
 
+
+
 (cps `(p (λ (x) ((z p) q))) id)
+
+(cps '((λ (x) z) o) id)
 
 (cps 'x id)
 
-(run 1 (res k)
-    (cpsᵒ res k 'x))
+(run* (res)
+  (cpsᵒ '(p (λ (x) ((z p) q)))  'K-id res ))
+
+;;fail to terminate
+
+
+(run* (res)
+  (cpsᵒ res 'K-id '(z q (λ (x) x))))
+
+(trace apply-kᵒ)
+(trace cpsᵒ)
