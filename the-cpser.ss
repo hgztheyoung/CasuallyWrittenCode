@@ -43,8 +43,8 @@
 (define (cps-i p k)
   (match p
     [,sym (guard (symbol? sym)) (k sym)]
-    [(k ,sth) (k sth)]
-    [(λ (,x k) ,body) (k `(λ (x) ,(cps-i body id)))]
+    [(k ,sth) (cps-i sth k)]
+    [(λ (,x k) ,body) (k `(λ (,x) ,(cps-i body id)))]
     [(,app ,rator ,kont)
      (cps-i app (λ (acode)
                   (cps-i rator (λ (rcode)
@@ -53,7 +53,7 @@
                                      [k (k res)]
                                      [(λ (,sym) ,body)
                                       (cps-i body (λ (bcode)
-                                                  (k (subst bcode sym res))))]))))))]))
+                                                    (k (subst bcode sym res))))]))))))]))
 
 (define (cps p k)
   (match p
@@ -133,6 +133,21 @@
 #!eof
 (load "the-cpser.ss")
 
+(map (λ (p) (if (not (equal?
+                      (cps-i (cps p 'K-id) id) p))
+                `(,p ,(cps p 'K-id) ,(cps-i (cps p 'K-id) id))
+                #t))
+     (map car (run 10 (res)
+                (verify-termᵒ res))))
+
+
+'(_.0 (λ (_.0 k) (k _.1)) (_.0 _.1 (λ (g11) g11))
+      (λ (_.0 k) (k (λ (_.1 k) (k _.2)))) (λ (_.0 k) (_.1 _.2 k))
+      (_.0 (λ (_.1 k) (k _.2)) (λ (g12) g12))
+      ((λ (_.0 k) (k _.1)) _.2 (λ (g13) g13))
+      (λ (_.0 k) (k (λ (_.1 k) (k (λ (_.2 k) (k _.3))))))
+      (_.1 _.2 (λ (g14) (_.0 g14 (λ (g15) g15))))
+      (λ (_.0 k) (k (λ (_.1 k) (_.2 _.3 k)))))
 
 (cps `(p (λ (x) q)) 'K-id)
 
