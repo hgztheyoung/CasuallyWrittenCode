@@ -1,8 +1,10 @@
-(load "mk.scm")
 (import (Framework match))
 (import (Framework helpers))
 (case-sensitive #t)
+(optimize-level 2)
 (print-gensym 'pretty)
+(load "mk.scm")
+
 
 (define-syntax λ
   (syntax-rules ()
@@ -10,76 +12,152 @@
      (lambda (x ...) body ...)]))
 
 
-(define (id x) x)
-
-(define (k0 x) `(k ,x))
-
-(define (cps p k)
-  (match p
-    [,sym (guard (symbol? sym)) (k sym)]
-    [(λ (,x) ,body) (k `(λ (,x k) ,(cps body k0)))]
+(define (cps1 program k)
+  (match program
+    [,s (guard (symbol? s)) (k s)]
+    [(λ (,x) ,body) (guard (symbol? x))
+                    (k `(λ (,x k) ,(cps1 body (λ (x) `(k ,x)))))]
     [(,app ,rator)
-     (cps app (λ (acode)
-                (cps rator (λ (rcode)
-                             `(,acode ,rcode
-                                      ,(if (eq? k k0)
-                                           'k
-                                           (let ([sym (gensym)])
-                                             `(λ (,sym)
-                                                ,(k sym)))))))))]))
+     (cps1 app (λ (acode)
+                 (cps1 rator (λ (rcode)
+                               (let ([sym (gensym)])
+                                 `(,acode ,rcode (λ (,sym)
+                                                   ,(k sym))))))))]))
 
-
-(define (atom? a)
-  (not (or (null? a)
-           (list? a))))
-
-(define (subst p o n)
-  (match p
+(define (subst o n s-exp)
+  (match s-exp
     [() '()]
-    [,a (guard (atom? a))
-        (if (eq? a o) n a)]
+    [,a (guard (symbol? a)) (if (eq? a o) n a)]
     [(,[a] . ,[d]) `(,a . ,d)]))
 
-(define (cps-i p k)
-  (match p
-    [,sym (guard (symbol? sym)) (k sym)]
-    [(k ,sth) (cps-i sth k)]
-    [(λ (,x k) ,body) (k `(λ (,x) ,(cps-i body id)))]
-    [(,app ,rator ,kont)
-     (cps-i app (λ (acode)
-                  (cps-i rator (λ (rcode)
-                                 (let ([res `(,acode ,rcode)])
-                                   (match kont
-                                     [k (k res)]
-                                     [(λ (,sym) ,body)
-                                      (cps-i body (λ (bcode)
-                                                    (k (subst bcode sym res))))]))))))]))
 
-(define (cps p k)
-  (match p
-    [,sym (guard (symbol? sym)) (apply-k k sym)]
-    [(λ (,x) ,body) (apply-k k `(λ (,x k) ,(cps body 'K-k0)))]
-    [(,app ,rator)
-     (cps app `(K-app-1 ,k ,rator))]))
+(define (substᵒ o n s-exp out)
+  (conde
+   [(== s-exp '()) (== '() out)]
+   [(symbolo s-exp)
+    (conde
+     [(== s-exp o) (== n out)]
+     [(=/= s-exp o) (== s-exp out)])]
+   [(fresh (a d ares dres)
+      (== `(,ares . ,dres) out)
+      (== `(,a . ,d) s-exp)
+      (substᵒ o n a ares)
+      (substᵒ o n d dres))]))
 
+(define (cps-i cpsed-program k)
+  (match cpsed-program
+    [,s (guard (symbol? s)) (k s)]
+    [(λ (,x k) ,body) (guard (symbol? x))
+                      (cps-i body (λ (rbody)
+                                    (k `(λ (,x) ,rbody))))]
+    [(k ,sth) (k (cps-i sth k))]
+    [(,app ,rator (λ (,ressymbol) ,body))
+     (cps-i app (λ (rapp)
+                  (cps-i rator (λ (rrator)
+                                 (let* ([body-res (cps-i body k)])
+                                   (subst ressymbol `(,rapp ,rrator) body-res))))))]))
 
-(define (apply-k k code)
-  (match k
+; defunc cps-i
+;we treat subst as atomic here to save some strength
+(define (cps-i-defunc cpsed-program k)
+  (match cpsed-program
+    [,s (guard (symbol? s)) (apply-cps-i-defunc k s)]
+    [(λ (,x k) ,body) (guard (symbol? x))
+                      (cps-i-defunc body `(K-λ-final ,x ,k))]
+    [(k ,sth) (cps-i-defunc sth k)]
+    [(,app ,rator (λ (,sym) ,body))
+     (cps-i-defunc app
+                   `(K-app-rator ,rator ,sym ,body ,k))]))
+
+(define (apply-cps-i-defunc k-struct code)
+  (match k-struct
     [K-id code]
-    [K-k0 `(k ,code)]
-    [(K-app-1 ,k ,rator)
-     (cps rator `(K-app-0 ,k ,code))]
-    [(K-app-0 ,k ,acode)
-     `(,acode ,code
-              ,(if (eq? k 'K-k0)
-                   'k
-                   (let ([sym (gensym)])
-                     `(λ (,sym)
-                        ,(apply-k k sym)))))]))
+    [(K-λ-final ,x ,k) (apply-cps-i-defunc k `(λ (,x) ,code))]
+    [(K-app-rator ,rator ,sym ,body ,k)
+     (cps-i-defunc rator `(K-app-body ,code ,sym ,body ,k))]
+    [(K-app-body ,rapp ,sym ,body ,k)
+     (cps-i-defunc body `(K-app-final ,rapp ,code ,sym ,k))]
+    [(K-app-final ,rapp ,rrator ,sym ,k)
+     (apply-cps-i-defunc k (subst sym `(,rapp ,rrator) code))]))
+
+
+(define-syntax display-expr
+  (syntax-rules ()
+    [(_ expr) (begin
+                (display expr)
+                (display "\n")
+                expr)]))
+
+
+(define (decent-λ p bound-l)
+  (match p
+    [,sym (guard (member sym bound-l)) sym]
+    [(λ (,x) ,body) (guard (symbol? x))
+                    `(λ (,x) ,(decent-λ body (cons x bound-l)))]
+    [(,[app] ,[rator])
+     `(,app ,rator)]))
 
 
 
-;;;;;
+(define (consᵒ a d p)
+  (== p `(,a . ,d)))
+
+
+(define (carᵒ l a)
+  (fresh (d)
+    (consᵒ a d l)))
+
+
+(define (cdrᵒ l d)
+  (fresh (a)
+    (consᵒ a d l)))
+
+
+(define (pairᵒ p)
+  (fresh (a d)
+    (consᵒ a d p)))
+
+(define (listᵒ l)
+  (conde
+   [(== l '())]
+   [(pairᵒ l)
+    (fresh (d)
+      (cdrᵒ l d)
+      (listᵒ d))]))
+
+
+(define (proper-memberᵒ x l)
+  (conde
+   [(carᵒ l x)
+    (fresh (d)
+      (cdrᵒ l d)
+      (listᵒ d))]
+   [(fresh (d)
+      (cdrᵒ l d)
+      (proper-memberᵒ x d))]))
+
+(define (decent-λᵒ bound-syms out)
+  (conde
+   [(symbolo out)
+    (proper-memberᵒ out bound-syms)]
+   [(fresh (x body nm)
+      (== out `(λ (,x) ,body))
+      (symbolo x)
+      (consᵒ x bound-syms nm)
+      (decent-λᵒ nm body))]
+   [(fresh (app rator)
+      (== out `(,app ,rator))
+      (decent-λᵒ bound-syms app)
+      (decent-λᵒ bound-syms rator))]))
+
+(define (decent-λ p bound-l)
+  (match p
+    [,sym (guard (member sym bound-l)) sym]
+    [(λ (,x) ,body) (guard (symbol? x))
+                    `(λ (,x) ,(decent-λ body (cons x bound-l)))]
+    [(,[app] ,[rator])
+     `(,app ,rator)]))
+
 (define (cpsᵒ p k out)
   (conde
    [(symbolo p) (apply-kᵒ k p out)]
@@ -108,74 +186,138 @@
           (apply-kᵒ k sym appout)
           (== `(,acode ,code (λ (,sym) ,appout)) out))]))]))
 
+(define (decent-cpsedᵒ p)
+  (fresh (raw)
+    (decent-λᵒ '() raw)
+    (cpsᵒ raw 'K-id p)))
 
-(define (verify-term program)
-  (match program
-    [,sym (guard (symbol? sym)) sym]
-    [(λ (,x) ,[body]) (guard (symbol? x))
-                      `(λ (,x) ,body)]
-    [(,[app] ,[rator]) `(,app ,rator)]))
+(define (id x) x)
 
-
-(define (verify-termᵒ out)
+;now,ready to create cps-iᵒ
+(define (cps-iᵒ program k out)
+  (decent-cpsedᵒ program)
   (conde
-   [(symbolo out)]
+   [(symbolo program) (apply-cps-iᵒ k program out)]
    [(fresh (x body)
-      (== `(λ (,x) ,body) out)
+      (== program `(λ (,x k) ,body))
       (symbolo x)
-      (verify-termᵒ body))]
-   [(fresh (app rator)
-      (== `(,app ,rator) out)
-      (verify-termᵒ app)
-      (verify-termᵒ rator))]))
+      (cps-iᵒ body `(K-λ-final ,x ,k) out))]
+   [(fresh (sth)
+      (== program `(k ,sth))
+      (cps-iᵒ sth k out))]
+   [(fresh (app rator sym body)
+      (== program `(,app ,rator (λ (,sym) ,body)))
+      (cps-iᵒ app `(K-app-rator ,rator ,sym ,body ,k) out))]))
+
+(define (apply-cps-iᵒ k-struct code out)
+  (conde
+   [(== k-struct 'K-id) (== code out)]
+   [(fresh (x k)
+      (== k-struct `(K-λ-final ,x ,k))
+      (apply-cps-iᵒ k `(λ (,x) ,code) out))]
+   [(fresh (rator sym body k)
+      (== k-struct `(K-app-rator ,rator ,sym ,body ,k))
+      (cps-iᵒ rator `(K-app-body ,code ,sym ,body ,k) out))]
+   [(fresh (rapp sym body k)
+      (== k-struct `(K-app-body ,rapp ,sym ,body ,k))
+      (cps-iᵒ body `(K-app-final ,rapp ,code ,sym ,k) out))]
+   [(fresh (rapp rrator sym k subst-res)
+      (== k-struct `(K-app-final ,rapp ,rrator ,sym ,k))
+      (substᵒ sym `(,rapp ,rrator) code subst-res)
+      (apply-cps-iᵒ k subst-res out))]))
 
 
 #!eof
+
 (load "the-cpser.ss")
 
-(map (λ (p) (if (not (equal?
-                      (cps-i (cps p 'K-id) id) p))
-                `(,p ,(cps p 'K-id) ,(cps-i (cps p 'K-id) id))
-                #t))
-     (map car (run 10 (res)
-                (verify-termᵒ res))))
+(run 40 (res)
+  (decent-cpsedᵒ res))
 
 
-'(_.0 (λ (_.0 k) (k _.1)) (_.0 _.1 (λ (g11) g11))
-      (λ (_.0 k) (k (λ (_.1 k) (k _.2)))) (λ (_.0 k) (_.1 _.2 k))
-      (_.0 (λ (_.1 k) (k _.2)) (λ (g12) g12))
-      ((λ (_.0 k) (k _.1)) _.2 (λ (g13) g13))
-      (λ (_.0 k) (k (λ (_.1 k) (k (λ (_.2 k) (k _.3))))))
-      (_.1 _.2 (λ (g14) (_.0 g14 (λ (g15) g15))))
-      (λ (_.0 k) (k (λ (_.1 k) (_.2 _.3 k)))))
+(define bound-λs
+ (map car
+       (run 400 (res)
+         (decent-λᵒ res '() res))))
 
-(cps `(p (λ (x) q)) 'K-id)
+(map (λ (p) (cps1 p id))
+     bound-λs)
 
-(cps-i `(p (λ (x k) (k q)) (λ (g10) g10))
- id)
+(trace decent-λ)
 
-(p (λ (x k) (k q)) (λ (#:g10) #:g10))
+(decent-λ '((λ (x) (λ (y) x)) (λ (z) z)) '())
+
+(cps1 '(λ (x) (λ (y) x)) id)
 
 
-(cps `(p (λ (x) ((z p) q))) 'K-id)
+(run 40 (res)
+  (cps-iᵒ res 'K-id 'x))
+
+
+(run* (out)
+      (cps-iᵒ '(p (λ (x k) (k z)) (λ (g0) (g0 q (λ (g1) g1))))
+              'K-id out))
+
+
+(run 1 (out)
+  (cps-iᵒ '(p (λ (x k) (k z)) (λ (g0) (g0 q (λ (g1) g1))))
+          out
+          '(((p (λ (x) z)) q))))
+
+
+
+
+(cps-i '(λ (x k) (k x)) (λ (x) x))
+
 
 (cps-i
- '(p (λ (x k) (z p (λ (g6) (g6 q k)))) (λ (g7) g7))
- id)
+ '(p (λ (x k) (k z)) (λ (g4) (g4 q (λ (g5) g5))))
+ (λ (x) x))
+
+(cps-i-defunc
+ '(p (λ (x k) (k z)) (λ (g4) (g4 q (λ (g5) g5))))
+ 'K-id)
+
+(run* (q)
+      (substᵒ 'x 'y '(x y z) q))
+
+(run 1 (out)
+  (cps-iᵒ
+   '(p (λ (x k) (k z)) (λ (g4) (g4 q (λ (g5) g5))))
+   'K-id
+   out))
 
 
-(cps '((λ (x) z) o) id)
-
-(cps 'x id)
-
-(run* (res)
-  (cpsᵒ '(p (λ (x) ((z p) q)))  'K-id res ))
-
-;;fail to terminate
+(run 10 (out)
+      (cps-iᵒ
+       out
+       'K-id
+      '(λ (x) x)))
 
 
-(run* (res)
-  (cpsᵒ res 'K-id '(z q (λ (x) x))))
+(run* (out)
+      (cps-iᵒ
+       '(λ (x k) (k x))
+       'K-id
+       out))
 
-(trace apply-kᵒ)
-(trace cpsᵒ)
+(run* (out)
+      (cps-iᵒ
+       '(p q (λ (x) x))
+       'K-id
+       out))
+
+(run* (out)
+      (cps-iᵒ '(p (λ (x k) (k z)) (λ (g0) (g0 q (λ (g1) g1))))
+              'K-id out))
+
+
+
+(cps1 `((p (λ (x) z)) q) (λ (x) x))
+
+(define-syntax display-expr
+  (syntax-rules ()
+    [(_ expr) (begin
+                (display expr)
+                (display "\n")
+                                expr)]))
